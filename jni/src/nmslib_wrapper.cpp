@@ -112,7 +112,37 @@ void knn_jni::nmslib_wrapper::CreateIndex(knn_jni::JNIUtilInterface * jniUtil, J
 
             floatArrayCpp = jniUtil->GetFloatArrayElements(env, floatArrayJ, nullptr);
 
-            dataset.push_back(new similarity::Object(idsCpp[i], -1, dim*sizeof(float), floatArrayCpp));
+            int numElems = dim;
+            if (spaceTypeCpp == "jaccard_sparse") {
+                numElems = 0;
+                for(int32_t i = 0; i < dim; i++) {
+                    if (floatArrayCpp[i] != 0.0f) {
+                        reinterpret_cast<int32_t *>(floatArrayCpp)[numElems] = i;
+                        numElems++;
+                    }
+                }
+            } else if (spaceTypeCpp == "bit_jaccard") {
+                if (dim < 2) {
+                    throw std::runtime_error("Dimension of vectors for bit_jaccard must be > 1!");
+                }
+                numElems = 0;
+                uint32_t *bitArray = reinterpret_cast<uint32_t *>(floatArrayCpp);
+                for(unsigned i = 0; i < unsigned(dim); i++) {
+                    float elem = floatArrayCpp[i];
+                    unsigned word = i / 32;
+                    unsigned shift = i & 31;
+                    if (shift == 0) {
+                        bitArray[word] = 0;
+                        numElems++;
+                    }
+                    if (elem != 0.0f) {
+                        bitArray[word] |= (1 << shift);
+                    }
+                }
+                bitArray[numElems++] = uint32_t(dim);
+            }
+
+            dataset.push_back(new similarity::Object(idsCpp[i], -1, numElems*sizeof(float), floatArrayCpp));
             jniUtil->ReleaseFloatArrayElements(env, floatArrayJ, floatArrayCpp, JNI_ABORT);
         }
         jniUtil->ReleaseIntArrayElements(env, idsJ, idsCpp, JNI_ABORT);
@@ -194,9 +224,39 @@ jobjectArray knn_jni::nmslib_wrapper::QueryIndex(knn_jni::JNIUtilInterface * jni
 
     float* rawQueryvector = jniUtil->GetFloatArrayElements(env, queryVectorJ, nullptr); // Have to call release on this
 
+    int numElems = dim;
+    if (indexWrapper->space->StrDesc() == "jaccard_sparse") {
+        numElems = 0;
+        for(int32_t i = 0; i < dim; i++) {
+            if (rawQueryvector[i] != 0.0f) {
+                reinterpret_cast<int32_t *>(rawQueryvector)[numElems] = i;
+                numElems++;
+            }
+        }
+    } else if (indexWrapper->space->StrDesc() == "bit_jaccard") {
+        if (dim < 2) {
+            throw std::runtime_error("Dimension of vectors for bit_jaccard must be > 1!");
+        }
+        numElems = 0;
+        uint32_t *bitArray = reinterpret_cast<uint32_t *>(rawQueryvector);
+        for(unsigned i = 0; i < unsigned(dim); i++) {
+            float elem = rawQueryvector[i];
+            unsigned word = i / 32;
+            unsigned shift = i & 31;
+            if (shift == 0) {
+                bitArray[word] = 0;
+                numElems++;
+            }
+            if (elem != 0.0f) {
+                bitArray[word] |= (1 << shift);
+            }
+        }
+        bitArray[numElems++] = uint32_t(dim);
+    }
+
     std::unique_ptr<const similarity::Object> queryObject;
     try {
-        queryObject.reset(new similarity::Object(-1, -1, dim*sizeof(float), rawQueryvector));
+        queryObject.reset(new similarity::Object(-1, -1, numElems*sizeof(float), rawQueryvector));
     } catch (...) {
         jniUtil->ReleaseFloatArrayElements(env, queryVectorJ, rawQueryvector, JNI_ABORT);
         throw;
@@ -254,6 +314,14 @@ std::string TranslateSpaceType(const std::string& spaceType) {
 
     if (spaceType == knn_jni::INNER_PRODUCT) {
         return knn_jni::NEG_DOT_PRODUCT;
+    }
+
+    if (spaceType == "bit_jaccard") {
+        return "bit_jaccard";
+    }
+
+    if (spaceType == "jaccard_sparse") {
+        return "jaccard_sparse";
     }
 
     throw std::runtime_error("Invalid spaceType");

@@ -67,6 +67,18 @@ public enum SpaceType {
     public float scoreTranslation(float rawScore) {
       return 1 / (1 + rawScore);
     }
+  },
+  JACCARD_SPARSE("jaccard_sparse") {
+    @Override
+    public float scoreTranslation(float rawScore) {
+      return 1.0f - rawScore;
+    }
+  },
+  BIT_JACCARD("bit_jaccard") {
+    @Override
+    public float scoreTranslation(float rawScore) {
+      return 1.0f - rawScore;
+    }
   };
 
   public static SpaceType DEFAULT = L2;

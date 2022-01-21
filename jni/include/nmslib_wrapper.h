@@ -48,10 +48,11 @@ namespace knn_jni {
         struct IndexWrapper {
             explicit IndexWrapper(const std::string& spaceType) {
                 // Index gets constructed with a reference to data (see above) but is otherwise unused
-                similarity::ObjectVector data;
+                data.reset(new similarity::ObjectVector());
                 space.reset(similarity::SpaceFactoryRegistry<float>::Instance().CreateSpace(spaceType, similarity::AnyParams()));
-                index.reset(similarity::MethodFactoryRegistry<float>::Instance().CreateMethod(false, "hnsw", spaceType, *space, data));
+                index.reset(similarity::MethodFactoryRegistry<float>::Instance().CreateMethod(false, "hnsw", spaceType, *space, *data));
             }
+            std::unique_ptr<similarity::ObjectVector> data;
             std::unique_ptr<similarity::Space<float>> space;
             std::unique_ptr<similarity::Index<float>> index;
         };

@@ -287,7 +287,7 @@ public interface KNNLibrary {
                                         KNNSettings.INDEX_KNN_DEFAULT_ALGO_PARAM_EF_CONSTRUCTION, v -> v > 0))
                                 .build())
                         .addSpaces(SpaceType.L2, SpaceType.L1, SpaceType.LINF, SpaceType.COSINESIMIL,
-                                SpaceType.INNER_PRODUCT)
+                                SpaceType.INNER_PRODUCT, SpaceType.JACCARD_SPARSE, SpaceType.BIT_JACCARD)
                         .build()
         );
 
